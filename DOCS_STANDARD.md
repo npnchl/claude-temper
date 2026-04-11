@@ -1,4 +1,4 @@
-# Docs Standard — claude-helper
+# Docs Standard — claude-temper
 
 ## Philosophy
 
