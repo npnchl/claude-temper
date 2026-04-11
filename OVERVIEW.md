@@ -1,4 +1,4 @@
-# claude-temper
+# Overview - claude-temper
 
 > North star document. Written before any code. All decisions made here are
 > binding until explicitly revised. Do not start coding without reading this first.
