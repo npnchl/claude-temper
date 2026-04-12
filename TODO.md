@@ -10,20 +10,20 @@
 - [ ] Initialise repo with Manifest V3 structure (`manifest.json`, `background.js`, `content.js`)
 - [ ] Configure `host_permissions` for `claude.ai`
 - [ ] Add `"fileSystem"` / File System Access API permissions
-- [ ] Set up `content_scripts` entry to inject panel on `claude.ai` pages
-- [ ] Add toolbar button (no popup — button triggers panel open/focus)
+- [ ] Set up `content_scripts` entry to inject on `claude.ai` pages
 - [ ] Confirm extension loads in Vivaldi without errors
 
 ---
 
-## Phase 2 · Floating panel
+## Phase 2 · Pill & panel shell
 
-- [ ] Create panel as a standalone HTML window opened via `chrome.windows.create`
-- [ ] Ensure only one panel exists at a time (focus existing if already open)
-- [ ] Auto-open panel when navigating to `claude.ai`
-- [ ] Auto-close panel when leaving `claude.ai`
-- [ ] Persist panel state (active project, review pane content) via `chrome.storage.local`
-- [ ] Restore state correctly on close/reopen
+- [ ] Inject a Shadow DOM root into `claude.ai` via content script
+- [ ] Render the resting pill — fixed position, right-hand whitespace, vertically centred
+- [ ] Implement hover-to-expand with ~200ms intent delay
+- [ ] Panel expands right-anchored, up to 40% viewport width, full viewport height, overlays page
+- [ ] Panel snaps back to pill when drag leaves panel boundary
+- [ ] Persist panel state (active project, last selected file) via `localStorage`
+- [ ] Restore state correctly on page reload / tab reopen
 
 ---
 
@@ -31,65 +31,57 @@
 
 - [ ] Implement "Connect project" flow via `window.showDirectoryPicker()`
 - [ ] Store directory handle in `chrome.storage.local` (verify persistence across sessions)
-- [ ] Request and re-verify read/write permission on each session start
+- [ ] Request and re-verify read permission on each session start
 - [ ] Support multiple connected projects
-- [ ] Add project switcher UI in panel (dropdown or list)
-- [ ] Active project selection persists across close/reopen
+- [ ] Project switcher dropdown in toolbar — switches active project and refreshes file tree
+- [ ] "Connect folder…" option at bottom of dropdown opens file picker
+- [ ] Active project selection persists across panel collapse/expand cycles
 
 ---
 
-## Phase 4 · Note filer
+## Phase 4 · File tree
 
-- [ ] Read all `.md` files from `<project>/notes/` on panel open and project switch
-- [ ] Sort notes newest-first (rely on `YYYY-MM-DD` filename prefix)
-- [ ] Display note list in panel with filename and truncated first line
-- [ ] Click note → copy full contents to clipboard
-- [ ] Show brief confirmation toast on copy
-- [ ] Refresh note list after a new note is saved
-
----
-
-## Phase 5 · Session summariser
-
-- [ ] Write the summarise prompt (per `NOTES_STANDARD.md` format)
-- [ ] Implement DOM injection: find claude.ai chat input, insert prompt, submit
-- [ ] Define selector constant in a single isolated location (easy to patch if claude.ai changes markup)
-- [ ] Handle failure gracefully if selector not found (surface error in panel, don't silently fail)
-- [ ] Detect when Claude finishes responding and capture the output
-- [ ] Parse response into: header/type, body, optional `prompt:` block
+- [ ] Recursively read the active project folder on project select
+- [ ] Render a VSCode-style collapsible folder tree
+- [ ] Sort files newest-first within each folder (relies on `YYYY-MM-DD` filename prefixes)
+- [ ] Clicking a file opens it in the preview pane
+- [ ] Every file row is draggable
+- [ ] Live fuzzy search in toolbar filters the tree as you type
 
 ---
 
-## Phase 6 · Review pane & save
+## Phase 5 · Preview pane
 
-- [ ] Show review pane in panel after summarise completes
-- [ ] Editable filename field (pre-filled by Claude, following `YYYY-MM-DD_type_short-slug.md`)
-- [ ] Editable note header field
-- [ ] Toggle to strip `prompt:` continuation block before saving
-- [ ] **Save to notes/** button — write file via File System Access API
-- [ ] Confirmation toast on successful save
-- [ ] Clear review pane and refresh notes list after save
-- [ ] Handle write errors (permissions revoked, disk full, etc.)
+- [ ] Render selected file inline — markdown rendered, code files syntax-highlighted
+- [ ] Preview header shows filename and a "drag to chat" handle
+- [ ] Files are draggable from both the tree row and the preview header handle
+
+---
+
+## Phase 6 · Drag and drop
+
+- [ ] File drag from panel drops into Claude's native chat input via standard browser drag gesture
+- [ ] Panel snaps to pill when drag leaves panel boundary (exposes chat drop target)
+- [ ] Show brief confirmation toast on successful drop
+- [ ] Pill returns to resting state after toast
+- [ ] Isolate drop-target detection logic in a single location for easy patching
 
 ---
 
 ## Phase 7 · Polish & hardening
 
-- [ ] Write `NOTES_STANDARD.md` and bake final version into summarise prompt
 - [ ] Edge case: panel behaviour when multiple claude.ai tabs are open
-- [ ] Edge case: summarise triggered before Claude has finished a previous response
-- [ ] Edge case: project folder moved/deleted between sessions — surface clear error
-- [ ] Basic end-to-end test: connect project → summarise session → save note → note appears in list
+- [ ] Edge case: project folder moved/deleted between sessions — surface clear error in panel
+- [ ] Edge case: directory handle permission revoked mid-session
+- [ ] Basic end-to-end test: connect project → browse tree → preview file → drag to chat
 - [ ] Review all `console.error` paths — nothing should fail silently
-- [ ] Strip any debug logging before first real use
+- [ ] Strip debug logging before first real use
 
 ---
 
 ## Backlog / future
 
-- [ ] Drag-and-drop note loading into chat (deferred — clipboard covers workflow for now)
 - [ ] Firefox / cross-browser support (explicitly out of scope for v1)
-- [ ] Note search / filter in panel
 - [ ] Delete or archive notes from panel
 
 ---
@@ -97,5 +89,8 @@
 ## Notes & decisions
 
 - No companion server, no API calls, no cloud sync — intentional, keep it that way
-- File System Access API is the only mechanism for reading/writing notes
-- DOM selector for chat input is the single fragility point — isolate and document it clearly
+- No writing to disk — read-only access to project folders
+- No clipboard operations, no prompt injection, no synthetic events
+- Panel is Shadow DOM injected into claude.ai — no popup, no `chrome.windows.create`
+- Drop-target detection is the single fragility point — isolate and document it clearly
+- Phases 4–6 from the original TODO (note filer, session summariser, review pane) are cut — out of scope

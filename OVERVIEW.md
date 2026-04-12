@@ -7,61 +7,68 @@
 
 ## What this is
 
-A Manifest V3 Chrome extension (built for Vivaldi) that adds a persistent floating panel to your claude.ai workflow. The panel has two jobs: letting you load saved notes into chat as context, and automatically turning a session into a structured note you can save directly to your filesystem — no server, no API calls, no clipboard gymnastics beyond the minimum.
+A Manifest V3 Chrome extension (built for Vivaldi) that adds a lightweight project explorer to your claude.ai workflow. Its single job is bringing your local project files closer to Claude — browse them, preview them, and drag them directly into the chat. No server, no API calls, no writing to disk.
 
 ---
 
-## Core concept: projects and the notes folder
+## Core concept: projects
 
-Everything in the extension revolves around a **project** — a local folder you connect once via the browser's file picker. Inside that folder, the extension reads and writes a `notes/` subfolder. That's it. There's no configuration UI, no sync, no database. The folder structure *is* the config.
+Everything in the extension revolves around a **project** — a local folder you connect once via the browser's file picker. The extension reads that folder's contents recursively. There is no configuration UI, no sync, no database. The folder structure *is* the config.
 
-You can have multiple projects connected and switch between them from the panel. Whichever project is active determines which notes are shown and where new ones get saved.
+You can connect multiple projects and switch between them from the panel. Whichever project is active determines which files are shown.
+
+---
+
+## The pill
+
+The extension has no popup and no browser toolbar UI beyond the extension icon. On claude.ai, a small floating vertical pill appears in the right-hand whitespace alongside the centred chat column. It sits on a fixed z-index above the page — claude.ai's layout is never reflowed or touched.
+
+**Resting state:** a slim, unobtrusive pill centred vertically in the right whitespace. No label, no chrome.
+
+**Hover to expand:** hovering the pill triggers the panel to expand after a ~200ms intent delay. The panel grows right-anchored to fill up to 40% of viewport width and 100% of viewport height, overlaying the whitespace above the page.
+
+**Drag to collapse:** when a file is dragged out of the panel boundary, the panel immediately snaps back to the pill — clearing the view so the chat input is fully visible and easy to drop onto.
+
+**State** (active project, last selected file) persists across hover/collapse cycles via local storage.
 
 ---
 
 ## The panel
 
-The extension has no popup. When you're on claude.ai, a floating window opens automatically alongside it. It closes when you leave. If you close it manually, the toolbar button reopens it. Only one panel exists at a time — reopening focuses it rather than creating a duplicate.
+The expanded panel is injected into a Shadow DOM root to keep claude.ai's styles fully isolated. It has three zones:
 
-State (active project, any in-progress note review) persists across close/reopen via local storage, so nothing is lost if you accidentally dismiss it.
+### Toolbar
 
----
+A single compact row at the top of the panel. Project switcher and search bar sit side by side in the same container — project switcher is fixed-width on the left, search input takes the remaining space. One thin divider between them. No second row.
 
-## Feature 1: Note filer
+- **Project switcher** — a dropdown showing all connected projects. Selecting one switches the active project and refreshes the file tree. A "connect folder…" option at the bottom of the dropdown opens the browser's file picker to add a new project.
+- **Search** — live fuzzy search filtering the file tree as you type.
 
-The notes browser shows all `.md` files in your active project's `notes/` folder, sorted newest-first (ISO date prefixes make this automatic). Clicking a note copies its content to your clipboard with a brief confirmation toast — paste it into chat to give Claude context.
+### File tree
 
-That's the entire feature. Simple by design. Drag-and-drop loading may come in a future version, but clipboard copy covers the workflow cleanly.
+A VSCode-style collapsible folder tree showing the full contents of the active project folder, sorted newest-first within each folder (ISO date prefixes in filenames make this automatic). Clicking any file opens it in the preview pane. Any file row is draggable.
 
----
+### Preview pane
 
-## Feature 2: Session summariser
-
-A single **Summarise session** button injects a pre-written prompt into the current chat and submits it. Claude reads the conversation and produces a structured note — the right note type, a dense enough body to cold-restart the session, and a `prompt:` continuation block ready to paste into the next chat.
-
-Once Claude finishes, the note appears in a review pane inside the panel:
-
-- Editable header and filename (Claude pre-fills both based on the session content)
-- A toggle to strip the `prompt:` continuation block before saving, if you don't want it
-- A **Save to notes/** button that writes the file directly to your project folder via the File System Access API
-
-On save: confirmation toast, review pane clears, notes list refreshes.
+Renders the selected file inline — markdown is rendered, code files are syntax-highlighted. The preview header shows the filename and a "drag to chat" handle. Files can be dragged from either the tree row or the preview header handle.
 
 ---
 
-## Note format
+## Drag and drop
 
-Notes follow a shared standard (defined in `NOTES_STANDARD.md`, baked into the summarise prompt). Each note has a typed header, e.g. `session:`, `fix:`, `research:`, `decision:`, `finding:`, or `prompt:` — and a dense body. Filenames follow `YYYY-MM-DD_type_short-slug.md`.
+Dragging a file from the panel drops it directly into Claude's native chat input, using Claude's built-in file attachment handling. No clipboard, no injection, no synthetic events — it's a standard user drag gesture onto a native drop target.
 
-The `prompt:` continuation block at the end of a session note is a ready-to-paste context setter — open a new chat, paste it in, and Claude has enough to pick up where you left off.
+When a drag leaves the panel boundary the panel snaps back to the pill, opening up the full chat area so the drop target is easy to hit. On a successful drop, a brief confirmation toast appears and the pill returns to rest.
 
 ---
 
 ## What it intentionally doesn't do
 
+- No writing to disk — read-only access to your project folders
+- No session summariser — no prompts injected into the chat input
+- No clipboard operations
 - No companion server — everything runs in the browser
-- No Claude API calls — the extension only talks to the tab that's already open
-- No injection into claude.ai's UI beyond submitting the summarise prompt into the chat input (the one unavoidable touch point)
+- No Claude API calls
 - No cloud backup or sync
 - No Firefox support (Chromium/Vivaldi only)
 
@@ -69,4 +76,4 @@ The `prompt:` continuation block at the end of a session note is a ready-to-past
 
 ## Known fragility
 
-The summarise button works by finding claude.ai's chat input element and submitting text into it. This is the one place the extension depends on claude.ai's DOM structure. If claude.ai changes their markup, this breaks — but it's isolated to a single selector constant, so it's a one-line fix.
+The only dependency on claude.ai's DOM is the drag-and-drop drop target — specifically, whatever element Claude uses as its file attachment receiver. This is a native browser drag gesture rather than a programmatic injection, so it is significantly more stable than selector-based DOM manipulation. If it ever breaks, it is isolated to the drop target detection logic.
